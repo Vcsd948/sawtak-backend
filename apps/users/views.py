@@ -131,7 +131,7 @@ def send_code_email(user, subject, heading, intro, code):
         else:
             logger.error("Erreur Sendliberty (%s) : %s", response.status_code, response.text)
             return False
-    except requests.exceptions.RequestException as e:
+    except requests.exceptions.RequestException:
         logger.exception("Échec de la connexion à Sendliberty (user id=%s)", user.id)
         return False
 
@@ -406,18 +406,13 @@ class SmsPasswordResetConfirmView(PublicAPIView):
         new_password = request.data.get('new_password') or ''
 
         user = find_user_by_phone(telephone)
-        if user is None: return Response({'error': MSG_INVALID_CODE}, status=400)
-
-        v_code = VerificationCode.objects.filter(user=user, code_type='password', is_used=False).order_by('-created_at').first()
-        if not v_code:
+        if user is None: 
             return Response({'error': MSG_INVALID_CODE}, status=400)
 
-        # ✅ CORRECTION : On vérifie le code, mais on ne supprime pas la session en cas d'erreur.
-        # On laisse une marge de manœuvre à l'utilisateur pour réessayer.
+        # ✅ On demande UNIQUEMENT à Chinqit si le code est valide
         try:
-            is_valid = check_verification(v_code.verification_id, code)
+            is_valid = check_verification(telephone, code)
             if not is_valid:
-                # On ne supprime pas le code ici, on laisse une chance de réessayer
                 return Response({'error': 'Code invalide. Vérifiez le code reçu par SMS.'}, status=400)
         except ChinqitError:
             return Response({'error': MSG_SMS_UNAVAILABLE}, status=503)

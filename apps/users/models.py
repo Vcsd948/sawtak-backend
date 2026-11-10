@@ -9,7 +9,6 @@ class Profile(models.Model):
         ('super_admin', 'Super Administrateur'),
     )
 
-    # ✅ LISTE COMPLÈTE DES SPÉCIALITÉS
     SPECIALITE_CHOICES = (
         ('Général', 'Général'),
         ('SOMELEC', 'SOMELEC'),
@@ -34,15 +33,7 @@ class Profile(models.Model):
     telephone = models.CharField(max_length=20, unique=True, null=True, blank=True)
     photo = models.ImageField(upload_to='profile_photos/', null=True, blank=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='citoyen')
-    
-    specialite = models.CharField(
-        max_length=50, 
-        choices=SPECIALITE_CHOICES, 
-        blank=True, 
-        null=True, 
-        help_text="Ex: SOMELEC, SNDE, Police..."
-    )
-
+    specialite = models.CharField(max_length=50, choices=SPECIALITE_CHOICES, blank=True, null=True)
     email_verified = models.BooleanField(default=False)
 
     def __str__(self):
@@ -61,4 +52,8 @@ class VerificationCode(models.Model):
     is_used = models.BooleanField(default=False)
 
     def is_valid(self):
-        return not self.is_used and (timezone.now() - self.created_at).total_seconds() < 600
+        # Le code est valide s'il n'a pas été utilisé et qu'il a moins de 15 minutes
+        if self.is_used:
+            return False
+        time_elapsed = timezone.now() - self.created_at
+        return time_elapsed.total_seconds() < 900  # 900 secondes = 15 minutes
