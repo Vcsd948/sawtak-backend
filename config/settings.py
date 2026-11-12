@@ -4,7 +4,7 @@ from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
 from django.core.management.utils import get_random_secret_key
-import dj_database_url # ✅ Import ajouté pour Render
+import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -47,7 +47,6 @@ ALLOWED_HOSTS = [
     for host in os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
     if host.strip()
 ]
-# ✅ AJOUT POUR RENDER : On autorise Render par défaut
 if os.environ.get('RENDER'):
     ALLOWED_HOSTS.append(os.environ.get('RENDER_EXTERNAL_HOSTNAME', ''))
 
@@ -74,7 +73,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware', # ✅ AJOUT WHITENOISE
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -104,7 +103,6 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # --- BASE DE DONNÉES POSTGRESQL ---
-# ✅ On utilise dj_database_url pour basculer entre local et production automatiquement
 DATABASES = {
     'default': dj_database_url.config(
         default=os.environ.get('DATABASE_URL', 'sqlite:///db.sqlite3'),
@@ -133,7 +131,10 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media/')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# ✅ Configuration WhiteNoise pour la production
+# ✅ CRÉATION AUTOMATIQUE DES DOSSIERS MEDIA (Pour éviter les erreurs en local et sur Render)
+os.makedirs(os.path.join(MEDIA_ROOT, 'profile_photos'), exist_ok=True)
+os.makedirs(os.path.join(MEDIA_ROOT, 'attachments'), exist_ok=True)
+
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # --- CORS ---

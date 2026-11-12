@@ -205,12 +205,27 @@ class RegisterView(PublicAPIView):
         try:
             with transaction.atomic():
                 user = User.objects.create_user(username=username, email=email, password=password)
-                Profile.objects.create(
-                    user=user, nom=data.get('nom', ''), prenom=data.get('prenom', ''),
-                    telephone=telephone, date_naissance=data.get('date_naissance') or None,
-                    photo=request.FILES.get('photo'),
+                
+                # ✅ CORRECTION : On extrait explicitement le fichier photo
+                photo_file = request.FILES.get('photo')
+                if not photo_file and 'photo' in request.data:
+                    # Parfois DRF met le fichier dans request.data au lieu de request.FILES
+                    if hasattr(request.data['photo'], 'read'):
+                        photo_file = request.data['photo']
+                
+                profile = Profile.objects.create(
+                    user=user, 
+                    nom=data.get('nom', ''), 
+                    prenom=data.get('prenom', ''),
+                    telephone=telephone, 
+                    date_naissance=data.get('date_naissance') or None,
+                    photo=photo_file, # ✅ On utilise la variable extraite
                     role='citoyen'
                 )
+                
+                # ✅ On s'assure que le fichier est bien écrit sur le disque
+                if photo_file:
+                    profile.photo.save(photo_file.name, photo_file, save=True)
                 
                 code = generate_code()
                 VerificationCode.objects.create(user=user, code=code, code_type='email')
@@ -222,11 +237,18 @@ class RegisterView(PublicAPIView):
                     code
                 )
                 
-        except Exception:
-            logger.exception("Erreur d'inscription")
+        except Exception as e:
+            logger.exception("Erreur d'inscription: %s", str(e))
             return Response({'error': 'Impossible de créer le compte.'}, status=400)
             
-        user.refresh_from_db() 
+        # ✅ CORRECTION CRUCIALE ICI : On rafraîchit l'utilisateur depuis la base
+        # pour s'assurer que le champ "photo" est bien chargé en mémoire avant la sérialisation.
+        user.refresh_from_db()
+        
+        # On s'assure que le profil est rechargé avec la photo
+        if hasattr(user, 'profile'):
+            user.profile.refresh_from_db()
+
         message = 'Compte créé. Code envoyé par email.' if sent else "Compte créé, mais l'email n'a pas pu être envoyé."
         return Response({
             'message': message, 
@@ -409,7 +431,6 @@ class SmsPasswordResetConfirmView(PublicAPIView):
         if user is None: 
             return Response({'error': MSG_INVALID_CODE}, status=400)
 
-        # ✅ On demande UNIQUEMENT à Chinqit si le code est valide
         try:
             is_valid = check_verification(telephone, code)
             if not is_valid:
@@ -442,6 +463,8 @@ class UpdateProfilePhotoView(APIView):
             profile, _ = Profile.objects.get_or_create(user=request.user)
             profile.photo = request.FILES['photo']
             profile.save()
+            # ✅ On rafraîchit pour être sûr que l'URL est construite avec la nouvelle photo
+            request.user.refresh_from_db()
             return Response(UserSerializer(request.user, context={'request': request}).data)
         return Response({'error': 'Aucune photo'}, status=400)
 

@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-
+import os
 from .models import Profile
 
 
@@ -38,15 +38,27 @@ class UserSerializer(serializers.ModelSerializer):
         return obj.email
 
     def get_photo(self, obj):
-        request = self.context.get('request')
         profile = getattr(obj, 'profile', None)
         
         if profile and profile.photo:
-            # ✅ Si on a le contexte request, on construit l'URL absolue
+            # ✅ Construction robuste de l'URL
+            url = profile.photo.url
+            
+            # Si l'URL est déjà absolue, on la renvoie telle quelle
+            if url.startswith('http'):
+                return url
+                
+            request = self.context.get('request')
             if request:
-                return request.build_absolute_uri(profile.photo.url)
-            # Sinon, on renvoie le chemin relatif (Flutter gérera)
-            return profile.photo.url
+                # On force le HTTPS si on est sur Render
+                host = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+                if host:
+                    return f"https://{host}{url}"
+                
+                # En local, on utilise le build_absolute_uri classique
+                return request.build_absolute_uri(url)
+                
+            return url
         return None
 
     def get_photoUrl(self, obj):
